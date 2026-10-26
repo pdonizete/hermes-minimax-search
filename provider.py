@@ -116,13 +116,19 @@ class MiniMaxWebSearchProvider(BaseWebSearchProvider):
             if response.status_code >= 400:
                 detail = response.text.strip()[:300]
                 return search_fail(f"MiniMax search failed (HTTP {response.status_code}): {detail}")
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                # A WAF/proxy can answer 200 with an HTML or plain-text body; response.json()
+                # would raise and escape as an unhandled error instead of a clean search failure.
+                detail = response.text.strip()[:300]
+                return search_fail(f"MiniMax search returned a non-JSON body: {detail}")
             base = data.get("base_resp") or {}
             # status_code 0 == success; the vendor reports app errors in-body, not via HTTP.
             if base.get("status_code"):
                 return search_fail(f"MiniMax search error {base.get('status_code')}: {base.get('status_msg') or 'unknown'}")
             rows = _normalize(data, cap)
-            logger.info("MiniMax search: %d results", len(rows.get("data", {}).get("web", [])))
+            logger.info("MiniMax search: %d results", len(rows.get("results") or []))
             return rows
 
         return run_search("MiniMax", logger, _body)
