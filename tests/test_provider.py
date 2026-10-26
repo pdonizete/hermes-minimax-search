@@ -23,9 +23,20 @@ HERMES_SRC = os.environ.get("HERMES_SRC")
 if HERMES_SRC:
     sys.path.insert(0, HERMES_SRC)
 
-from provider import MiniMaxWebSearchProvider  # noqa: E402
+# Import por caminho de arquivo: o diretorio do repo tem hifen e nao e um pacote
+# Python valido, entao ``from provider import ...`` so funciona com o path acima —
+# mas o pytest pode ter coletado o ``__init__.py`` da raiz antes. Carregar o arquivo
+# explicitamente evita depender da ordem de coleta.
+import importlib.util  # noqa: E402
 
-LOGGER = logging.getLogger("provider")  # o logger do modulo do plugin
+_spec = importlib.util.spec_from_file_location("minimax_provider", REPO_ROOT / "provider.py")
+_provider = importlib.util.module_from_spec(_spec)
+sys.modules["minimax_provider"] = _provider
+_spec.loader.exec_module(_provider)
+MiniMaxWebSearchProvider = _provider.MiniMaxWebSearchProvider
+
+# O logger real do modulo carregado (o nome depende de como ele foi importado).
+LOGGER = _provider.logger
 
 
 def _stub_post(payload: str, status_code: int = 200):
